@@ -132,6 +132,17 @@ def load_models(opt):
 
     return detector, classifier
 
+gestures_list = []
+
+with open('annotation_EgoGesture/classIndAll.txt') as file:
+    for line in file:
+        # Split the line into the index and gesture name
+        index, gesture_name = line.strip().split(' ', 1)
+        
+        # Append the gesture name to the list
+        gestures_list.append(gesture_name)
+
+
 
 detector, classifier = load_models(opt)
 
@@ -148,6 +159,8 @@ spatial_transform = Compose([
     ToTensor(opt.norm_value), norm_method
 ])
 
+delay = 50
+count = delay
 opt.sample_duration = max(opt.sample_duration_clf, opt.sample_duration_det)
 fps = ""
 cap = cv2.VideoCapture(opt.video)
@@ -175,12 +188,32 @@ while cap.isOpened():
     if num_frame == 0:
         cur_frame = cv2.resize(frame,(320,240))
         cur_frame = Image.fromarray(cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # You can change the codec if needed
+        out = cv2.VideoWriter("/home/rrn4hc/mnt/Real-time-GesRec/archive/out_5822_rgb.mp4", fourcc, 20.0, (320, 640))
         cur_frame = cur_frame.convert('RGB')
         for i in range(opt.sample_duration):
             clip.append(cur_frame)
         clip = [spatial_transform(img) for img in clip]
     clip.pop(0)
     _frame = cv2.resize(frame,(320,240))
+    
+    width, height = frame.shape[0], frame.shape[1]
+    
+    if width > height:
+        ratio = width / height
+        desired_height = min(480, height)
+        desired_width = int(desired_height * ratio)
+    elif width < height:
+        ratio = height / width
+        desired_width = min(480, width)
+        desired_height = int(desired_width * ratio)
+    else:
+        desired_width = desired_height = 480
+    print(width, height)
+    print(desired_width, desired_height)
+    
+    resize_frame = cv2.resize(frame, (desired_height, desired_width))
+    
     _frame = Image.fromarray(cv2.cvtColor(_frame,cv2.COLOR_BGR2RGB))
     _frame = _frame.convert('RGB')
     _frame = spatial_transform(_frame)
@@ -281,15 +314,22 @@ while cap.isOpened():
                     if best1 == prev_best1:
                         if cum_sum[best1] > 5:
                             results.append(((i * opt.stride_len) + opt.sample_duration_clf, best1))
-                            print('Late Detected - class : {} with prob : {} at frame {}'.format(best1,
-                                                                                                 cum_sum[best1], (
-                                                                                                             i * opt.stride_len) + opt.sample_duration_clf))
+                            
+                            
+                            print('Late Detected - class : {} ({}) with prob : {} at frame {}'.format(best1,
+                                                                                                      gestures_list[best1-1],
+                                                                                                 cum_sum[best1], (i * opt.stride_len) + opt.sample_duration_clf))
+
                     else:
                         results.append(((i * opt.stride_len) + opt.sample_duration_clf, best1))
-
-                        print('Late Detected - class : {} with prob : {} at frame {}'.format(best1, cum_sum[best1],
-                                                                                             (
-                                                                                                         i * opt.stride_len) + opt.sample_duration_clf))
+                        print('Late Detected - class : {} ({}) with prob : {} at frame {}'.format(best1,
+                                                                                                gestures_list[best1-1],
+                                                                                                cum_sum[best1], (i * opt.stride_len) + opt.sample_duration_clf))
+                        
+                    last_frame = frame
+                    count = 0
+                    last_pred = gestures_list[best1]
+                
 
             finished_prediction = False
             prev_best1 = best1
@@ -310,11 +350,14 @@ while cap.isOpened():
         predicted = []
 
     print('predicted classes: \t', predicted)
+    
+    if count < delay:
+        cv2.putText(frame, last_pred, (0, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (38, 0, 255), 1, cv2.LINE_AA)
+        count += 1
 
-    cv2.putText(frame, fps, (0, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (38, 0, 255), 1, cv2.LINE_AA)
-    cv2.imshow("Result", frame)
-
-    if cv2.waitKey(1)&0xFF == ord('q'):
+    out.write(frame)
+    cv2.imshow("Result", resize_frame)
+    if cv2.waitKey(10)&0xFF == ord('q'):
         break
 cv2.destroyAllWindows()
 

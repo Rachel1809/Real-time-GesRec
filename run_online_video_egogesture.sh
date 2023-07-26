@@ -1,12 +1,11 @@
 #!/bin/bash
-
 # "$1" test video path
 
 python online_test_video.py \
-	--root_path ~/Real-time-GesRec \
+	--root_path /home/rrn4hc/mnt/Real-time-GesRec \
 	--resume_path_det results/egogesture_resnetl_10_RGB_8.pth \
 	--resume_path_clf results/egogesture_resnext_101_RGB_32.pth  \
-    --video $1 \
+    --video archive/IMG_5822.mp4 \
 	--sample_duration 8 \
 	--sample_duration_det 8 \
 	--sample_duration_clf 32 \
